@@ -5,3 +5,4 @@ output/**/*.json
 *.png
 .ipynb_checkpoints
 data/*
+notebooks/*

@@ -16,6 +16,8 @@ from pytorch_lightning.callbacks import LearningRateMonitor
 from pytorch_lightning.strategies.ddp import DDPStrategy
 from transformers import get_scheduler
 
+from dataset import NERDataset
+
 #from rxnscribe.model import Encoder, Decoder
 #from rxnscribe.pix2seq import build_pix2seq_model
 #from rxnscribe.loss import Criterion
@@ -151,9 +153,9 @@ class NERDataModule(LightningDataModule):
     def prepare_data(self):
         args = self.args
         if args.do_train:
-            self.train_dataset = ReactionDataset(args, self.tokenizer, args.train_file, split='train')
+            self.train_dataset = NERDataset(args, args.train_file, split='train')
         if self.args.do_train or self.args.do_valid:
-            self.val_dataset = ReactionDataset(args, self.tokenizer, args.valid_file, split='valid')
+            self.val_dataset = NERDataset(args, args.valid_file, split='valid')
         
     def print_stats(self):
         if self.args.do_train:
@@ -161,3 +163,10 @@ class NERDataModule(LightningDataModule):
         if self.args.do_train or self.args.do_valid:
             print(f'Valid dataset: {len(self.val_dataset)}')
 
+def main():
+
+    args = get_args()
+
+    pl.seed_everything(args.seed, workers = True)
+
+    
