@@ -1,0 +1,7 @@
+scripts/*.sh
+**/__pycache__
+*events.out*
+output/**/*.json
+*.png
+.ipynb_checkpoints
+data/*
