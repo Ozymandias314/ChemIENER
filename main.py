@@ -16,7 +16,18 @@ from pytorch_lightning.callbacks import LearningRateMonitor
 from pytorch_lightning.strategies.ddp import DDPStrategy
 from transformers import get_scheduler
 
-from dataset import NERDataset
+from dataset import NERDataset, get_collate_fn
+
+from model import build_model
+
+import utils
+
+import evaluate
+
+from seqeval.metrics import accuracy_score
+from seqeval.metrics import classification_report
+from seqeval.metrics import f1_score
+from seqeval.scheme import IOB2
 
 #from rxnscribe.model import Encoder, Decoder
 #from rxnscribe.pix2seq import build_pix2seq_model
@@ -135,20 +146,161 @@ def get_args(notebook=False):
 
     parser.add_argument('--punish_first', action='store_true')
 
+    parser.add_argument('--roberta_checkpoint', type=str, default = "roberta-base")
+
+    parser.add_argument('--corpus', type=str, default = "chemu")
+
     args = parser.parse_args([]) if notebook else parser.parse_args()
 
     args.images = args.images.split(',')
 
 
 
+
+
     return args
 
+
+class ChemIENERecognizer(LightningModule):
+
+    def __init__(self, args):
+        super().__init__()
+
+        self.args = args
+
+        self.model = build_model(args)
+
+        self.validation_step_outputs = []
+
+    def training_step(self, batch, batch_idx):
+        
+
+
+
+        sentences, masks, refs = batch
+        '''
+        print("sentences " + str(sentences))
+        print("sentence shape " + str(sentences.shape))
+        print("masks " + str(masks))
+        print("masks shape " + str(masks.shape))
+        print("refs " + str(refs))
+        print("refs shape " + str(refs.shape))
+        '''
+
+        
+
+        loss, logits = self.model(input_ids=sentences, attention_mask=masks, labels=refs)
+        self.log('train/loss', loss)
+        self.log('lr', self.lr_schedulers().get_lr()[0], prog_bar=True, logger=False)
+        return loss
+    
+    def validation_step(self, batch, batch_idx):
+        
+        sentences, masks, refs = batch
+        '''
+        print("sentences " + str(sentences))
+        print("sentence shape " + str(sentences.shape))
+        print("masks " + str(masks))
+        print("masks shape " + str(masks.shape))
+        print("refs " + str(refs))
+        print("refs shape " + str(refs.shape))
+        '''
+
+        logits = self.model(input_ids = sentences, attention_mask=masks)[0]
+        '''
+        print("logits " + str(logits))
+        print(sentences.shape)
+        print(logits.shape)
+        print(torch.eq(logits.argmax(dim = 2), refs).sum())
+        '''
+        self.validation_step_outputs.append((sentences.to("cpu"), logits.argmax(dim = 2).to("cpu"), refs.to('cpu')))
+
+
+    def on_validation_epoch_end(self):
+        if self.trainer.num_devices > 1:
+            gathered_outputs = [None for i in range(self.trainer.num_devices)]
+            dist.all_gather_object(gathered_outputs, self.validation_step_outputs)
+            gathered_outputs = sum(gathered_outputs, [])
+        else:
+            gathered_outputs = self.validation_step_outputs
+        
+        sentences = [list(output[0]) for output in gathered_outputs]  
+
+        if self.args.corpus == "chemu":
+            class_to_index = {'B-EXAMPLE_LABEL': 1, 'B-REACTION_PRODUCT': 2, 'B-STARTING_MATERIAL': 3, 'B-REAGENT_CATALYST': 4, 'B-SOLVENT': 5, 'B-OTHER_COMPOUND': 6, 'B-TIME': 7, 'B-TEMPERATURE': 8, 'B-YIELD_OTHER': 9, 'B-YIELD_PERCENT': 10, 'O': 0,
+                 'I-EXAMPLE_LABEL': 11, 'I-REACTION_PRODUCT': 12, 'I-STARTING_MATERIAL': 13, 'I-REAGENT_CATALYST': 14, 'I-SOLVENT': 15, 'I-OTHER_COMPOUND': 16, 'I-TIME': 17, 'I-TEMPERATURE': 18, 'I-YIELD_OTHER': 19, 'I-YIELD_PERCENT': 20}
+        elif self.args.corpus == "chemdner":
+            class_to_index = self.class_to_index = {'O': 0, 'B-ABBREVIATION': 1, 'B-FAMILY': 2,  'B-FORMULA': 3, 'B-IDENTIFIER': 4, 'B-MULTIPLE': 5, 'B-SYSTEMATIC': 6, 'B-TRIVIAL': 7, 'B-NO CLASS': 8, 'I-ABBREVIATION': 9, 'I-FAMILY': 10,  'I-FORMULA': 11, 'I-IDENTIFIER': 12, 'I-MULTIPLE': 13, 'I-SYSTEMATIC': 14, 'I-TRIVIAL': 15, 'I-NO CLASS': 16}
+
+
+
+        index_to_class = {class_to_index[key]: key for key in class_to_index}
+        predictions = [list(output[1]) for output in gathered_outputs] 
+        labels = [list(output[2]) for output in gathered_outputs]
+
+
+        output = {"sentences": [[int(word.item()) for (word, label) in zip(sentence_w, sentence_l) if label != -100] for (batched_w, batched_l) in zip(sentences, labels) for (sentence_w, sentence_l) in zip(batched_w, batched_l) ], 
+                  "predictions": [[index_to_class[int(pred.item())] for (pred, label) in zip(sentence_p, sentence_l) if label!=-100] for (batched_p, batched_l) in zip(predictions, labels) for (sentence_p, sentence_l) in zip(batched_p, batched_l)  ],
+                  "groundtruth": [[index_to_class[int(label.item())] for label in sentence if label != -100] for batched in labels for sentence in batched]}
+
+
+        #true_labels = [str(label.item()) for batched in labels for sentence in batched for label in sentence if label != -100]
+        #true_predictions = [str(pred.item()) for (batched_p, batched_l) in zip(predictions, labels) for (sentence_p, sentence_l) in zip(batched_p, batched_l) for (pred, label) in zip(sentence_p, sentence_l) if label!=-100 ]
+
+
+
+        #print("true_label " + str(len(true_labels)) + " true_predictions "+str(len(true_predictions)))
+
+
+        #predictions = utils.merge_predictions(gathered_outputs)
+        name = self.eval_dataset.name
+        scores = [0]
+
+        #print(predictions)
+        #print(predictions[0].shape)
+
+        if self.trainer.is_global_zero:
+            if not self.args.no_eval:
+                epoch = self.trainer.current_epoch
+
+                metric = evaluate.load("seqeval", cache_dir = '/Mounts/rbg-storage1/users/urop/vincentf/.local/bin')
+
+                all_metrics = metric.compute(predictions = output['predictions'], references = output['groundtruth'])
+
+                #accuracy = sum([1 if p == l else 0 for (p, l) in zip(true_predictions, true_labels)])/len(true_labels)
+
+                #precision = torch.eq(self.eval_dataset.data, predictions.argmax(dim = 1)).sum().float()/self.eval_dataset.data.numel()
+                #self.print("Epoch: "+str(epoch)+" accuracy: "+str(accuracy))
+                report = classification_report(output['groundtruth'], output['predictions'], mode = 'strict', scheme = IOB2, output_dict = True)
+                self.print(report)
+                scores = [report['weighted avg']['f1-score']]
+            with open(os.path.join(self.trainer.default_root_dir, f'prediction_{name}.json'), 'w') as f:
+                    json.dump(output, f)
+        
+        dist.broadcast_object_list(scores)
+
+        self.log('val/score', scores[0], prog_bar=True, rank_zero_only=True)
+        self.validation_step_outputs.clear()
+        
+        
+
+        self.validation_step_outputs.clear()
+
+    def configure_optimizers(self):
+        num_training_steps = self.trainer.num_training_steps
+        
+        self.print(f'Num training steps: {num_training_steps}')
+        num_warmup_steps = int(num_training_steps * self.args.warmup_ratio)
+        optimizer = torch.optim.AdamW(self.parameters(), lr=self.args.lr, weight_decay=self.args.weight_decay)
+        scheduler = get_scheduler(self.args.scheduler, optimizer, num_warmup_steps, num_training_steps)
+        return {'optimizer': optimizer, 'lr_scheduler': {'scheduler': scheduler, 'interval': 'step'}}
 
 class NERDataModule(LightningDataModule):
 
     def __init__(self, args):
         super().__init__()
         self.args = args
+        self.collate_fn = get_collate_fn()
 
     def prepare_data(self):
         args = self.args
@@ -156,12 +308,40 @@ class NERDataModule(LightningDataModule):
             self.train_dataset = NERDataset(args, args.train_file, split='train')
         if self.args.do_train or self.args.do_valid:
             self.val_dataset = NERDataset(args, args.valid_file, split='valid')
+        if self.args.do_test:
+            self.test_dataset = NERDataset(args, args.test_file, split='valid')
         
     def print_stats(self):
         if self.args.do_train:
             print(f'Train dataset: {len(self.train_dataset)}')
         if self.args.do_train or self.args.do_valid:
             print(f'Valid dataset: {len(self.val_dataset)}')
+        if self.args.do_test:
+            print(f'Test dataset: {len(self.test_dataset)}')
+
+    
+    def train_dataloader(self):
+        return torch.utils.data.DataLoader(
+            self.train_dataset, batch_size=self.args.batch_size, num_workers=self.args.num_workers,
+            collate_fn=self.collate_fn)
+
+    def val_dataloader(self):
+        return torch.utils.data.DataLoader(
+            self.val_dataset, batch_size=self.args.batch_size, num_workers=self.args.num_workers,
+            collate_fn=self.collate_fn)
+    
+
+    def test_dataloader(self):
+        return torch.utils.data.DataLoader(
+            self.test_dataset, batch_size=self.args.batch_size, num_workers=self.args.num_workers,
+            collate_fn=self.collate_fn)
+
+
+
+class ModelCheckpoint(pl.callbacks.ModelCheckpoint):
+    def _get_metric_interpolated_filepath_name(self, monitor_candidates, trainer, del_filepath=None) -> str:
+        filepath = self.format_checkpoint_name(monitor_candidates)
+        return filepath
 
 def main():
 
@@ -169,4 +349,57 @@ def main():
 
     pl.seed_everything(args.seed, workers = True)
 
+    if args.do_train:
+        model = ChemIENERecognizer(args)
+    else:
+        model = ChemIENERecognizer.load_from_checkpoint(os.path.join(args.save_path, 'checkpoints/best.ckpt'), strict=False,
+                                        args=args)
+
+    dm = NERDataModule(args)
+    dm.prepare_data()
+    dm.print_stats()
+
+    checkpoint = ModelCheckpoint(monitor='val/score', mode='max', save_top_k=1, filename='best', save_last=True)
+    # checkpoint = ModelCheckpoint(monitor=None, save_top_k=0, save_last=True)
+    lr_monitor = LearningRateMonitor(logging_interval='step')
+    logger = pl.loggers.TensorBoardLogger(args.save_path, name='', version='')
+
+    trainer = pl.Trainer(
+        strategy=DDPStrategy(find_unused_parameters=False),
+        accelerator='gpu',
+        precision = 16,
+        devices=args.gpus,
+        logger=logger,
+        default_root_dir=args.save_path,
+        callbacks=[checkpoint, lr_monitor],
+        max_epochs=args.epochs,
+        gradient_clip_val=args.max_grad_norm,
+        accumulate_grad_batches=args.gradient_accumulation_steps,
+        check_val_every_n_epoch=args.eval_per_epoch,
+        log_every_n_steps=10,
+        deterministic='warn')
+
+    if args.do_train:
+        trainer.num_training_steps = math.ceil(
+            len(dm.train_dataset) / (args.batch_size * args.gpus * args.gradient_accumulation_steps)) * args.epochs
+        model.eval_dataset = dm.val_dataset
+        ckpt_path = os.path.join(args.save_path, 'checkpoints/last.ckpt') if args.resume else None
+        trainer.fit(model, datamodule=dm, ckpt_path=ckpt_path)
+        model = ChemIENERecognizer.load_from_checkpoint(checkpoint.best_model_path, args=args)
+
+    if args.do_valid:
+
+        model.eval_dataset = dm.val_dataset
+
+        trainer.validate(model, datamodule=dm)
+
+    if args.do_test:
+
+        model.test_dataset = dm.test_dataset
+
+        trainer.test(model, datamodule=dm)
+
+
+if __name__ == "__main__":
+    main()
     
