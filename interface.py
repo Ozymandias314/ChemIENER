@@ -80,8 +80,8 @@ class ChemNER:
 
             predictions_list = list(predictions)
 
-            output["sentences"]+=[ [self.dataset.tokenizer.decode(int(word.item())) for word in sentence if len(self.tokenizer.decode(int(word.item()), skip_special_tokens = True)) > 0] for sentence in sentences_list],
-            output["predictions"]+=[[self.index_to_class[int(pred.item())] for (pred, word) in zip(sentence_p, sentence_w) if len(self.tokenizer.decode(int(word.item()), skip_special_tokens = True)) > 0] for (sentence_p, sentence_w) in zip(predictions_list, sentences_list)]
+            output["sentences"]+=[ [self.dataset.tokenizer.decode(int(word.item())) for word in sentence if len(self.dataset.tokenizer.decode(int(word.item()), skip_special_tokens = True)) > 0] for sentence in sentences_list]
+            output["predictions"]+=[[self.index_to_class[int(pred.item())] for (pred, word) in zip(sentence_p, sentence_w) if len(self.dataset.tokenizer.decode(int(word.item()), skip_special_tokens = True)) > 0] for (sentence_p, sentence_w) in zip(predictions_list, sentences_list)]
         
         return output
 
