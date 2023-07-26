@@ -29,7 +29,7 @@ class ChemNER:
 
         self.collate = get_collate_fn()
 
-        self.dataset = NERDataset(self.args)
+        self.dataset = NERDataset(self.args, data_file = None)
 
         self.class_to_index = get_class_to_index(self.args.corpus)
 
@@ -80,8 +80,8 @@ class ChemNER:
 
             predictions_list = list(predictions)
 
-            output["sentences"]+=[ [self.tokenizer.decode(int(word.item())) for word in sentence if self.tokenizer.decode(int(word.item()), skip_spcial_tokens = True) is not None] for sentence in sentences_list],
-            output["predictions"]+=[[self.index_to_class[int(pred.item())] for (pred, word) in zip(sentence_p, sentence_w) if self.tokenizer.decode(int(word.item()), skip_spcial_tokens = True) is not None] for (sentence_p, sentence_w) in zip(predictions_list, sentences_list)]
+            output["sentences"]+=[ [self.dataset.tokenizer.decode(int(word.item())) for word in sentence if len(self.tokenizer.decode(int(word.item()), skip_special_tokens = True)) > 0] for sentence in sentences_list],
+            output["predictions"]+=[[self.index_to_class[int(pred.item())] for (pred, word) in zip(sentence_p, sentence_w) if len(self.tokenizer.decode(int(word.item()), skip_special_tokens = True)) > 0] for (sentence_p, sentence_w) in zip(predictions_list, sentences_list)]
         
         return output
 
