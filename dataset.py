@@ -19,10 +19,11 @@ class NERDataset(Dataset):
     def __init__(self, args, data_file, split='train'):
         super().__init__()
         self.args = args
-        data_path = os.path.join(args.data_path, data_file)
-        with open(data_path) as f:
-            self.data = json.load(f)
-        self.name = os.path.basename(data_file).split('.')[0]
+        if data_file:
+            data_path = os.path.join(args.data_path, data_file)
+            with open(data_path) as f:
+                self.data = json.load(f)
+            self.name = os.path.basename(data_file).split('.')[0]
         self.split = split
         self.is_train = (split == 'train')
         self.tokenizer = BertTokenizerFast.from_pretrained('allenai/scibert_scivocab_uncased')
