@@ -20,7 +20,7 @@ from dataset import NERDataset, get_collate_fn
 
 from model import build_model
 
-import utils
+from utils import get_class_to_index
 
 import evaluate
 
@@ -52,6 +52,7 @@ def get_args(notebook=False):
     parser.add_argument('--debug', action='store_true')
     parser.add_argument('--no_eval', action='store_true')
     # Model
+    '''
     parser.add_argument('--encoder', type=str, default='resnet34')
     parser.add_argument('--decoder', type=str, default='lstm')
     parser.add_argument('--trunc_encoder', action='store_true')  # use the hidden states before downsample
@@ -99,6 +100,8 @@ def get_args(notebook=False):
     parser.add_argument('--nheads', default=8, type=int,
                         help="Number of attention heads inside the transformer's attentions")
     parser.add_argument('--pre_norm', action='store_true')
+    '''
+
     # Data
     parser.add_argument('--data_path', type=str, default=None)
     parser.add_argument('--image_path', type=str, default=None)
@@ -109,16 +112,16 @@ def get_args(notebook=False):
     parser.add_argument('--format', type=str, default='reaction')
     parser.add_argument('--num_workers', type=int, default=8)
     parser.add_argument('--input_size', type=int, default=224)
-    parser.add_argument('--augment', action='store_true')
-    parser.add_argument('--composite_augment', action='store_true')
-    parser.add_argument('--coord_bins', type=int, default=100)
-    parser.add_argument('--sep_xy', action='store_true')
-    parser.add_argument('--rand_order', action='store_true', help="randomly permute the sequence of input targets")
-    parser.add_argument('--split_heuristic', action = 'store_true', help="make the sequence of tokens follow a heuristic")
-    parser.add_argument('--add_noise', action='store_true')
-    parser.add_argument('--mix_noise', action='store_true')
-    parser.add_argument('--shuffle_bbox', action='store_true')
-    parser.add_argument('--images', type=str, default='')
+    #parser.add_argument('--augment', action='store_true')
+    #parser.add_argument('--composite_augment', action='store_true')
+    #parser.add_argument('--coord_bins', type=int, default=100)
+    #parser.add_argument('--sep_xy', action='store_true')
+    #parser.add_argument('--rand_order', action='store_true', help="randomly permute the sequence of input targets")
+    #parser.add_argument('--split_heuristic', action = 'store_true', help="make the sequence of tokens follow a heuristic")
+    #parser.add_argument('--add_noise', action='store_true')
+    #parser.add_argument('--mix_noise', action='store_true')
+    #parser.add_argument('--shuffle_bbox', action='store_true')
+    #parser.add_argument('--images', type=str, default='')
     # Training
     parser.add_argument('--epochs', type=int, default=8)
     parser.add_argument('--batch_size', type=int, default=256)
@@ -137,18 +140,20 @@ def get_args(notebook=False):
     parser.add_argument('--load_ckpt', type=str, default='best')
     parser.add_argument('--resume', action='store_true')
     parser.add_argument('--num_train_example', type=int, default=None)
-    parser.add_argument('--label_smoothing', type=float, default=0.0)
-    parser.add_argument('--save_image', action='store_true')
+    #parser.add_argument('--label_smoothing', type=float, default=0.0)
+    #parser.add_argument('--save_image', action='store_true')
     # Inference
-    parser.add_argument('--beam_size', type=int, default=1)
-    parser.add_argument('--n_best', type=int, default=1)
-    parser.add_argument('--molscribe', action='store_true')
+    #parser.add_argument('--beam_size', type=int, default=1)
+    #parser.add_argument('--n_best', type=int, default=1)
+    #parser.add_argument('--molscribe', action='store_true')
 
-    parser.add_argument('--punish_first', action='store_true')
+    #parser.add_argument('--punish_first', action='store_true')
 
     parser.add_argument('--roberta_checkpoint', type=str, default = "roberta-base")
 
     parser.add_argument('--corpus', type=str, default = "chemu")
+
+    parser.add_argument('--cache_dir')
 
     args = parser.parse_args([]) if notebook else parser.parse_args()
 
@@ -226,11 +231,7 @@ class ChemIENERecognizer(LightningModule):
         
         sentences = [list(output[0]) for output in gathered_outputs]  
 
-        if self.args.corpus == "chemu":
-            class_to_index = {'B-EXAMPLE_LABEL': 1, 'B-REACTION_PRODUCT': 2, 'B-STARTING_MATERIAL': 3, 'B-REAGENT_CATALYST': 4, 'B-SOLVENT': 5, 'B-OTHER_COMPOUND': 6, 'B-TIME': 7, 'B-TEMPERATURE': 8, 'B-YIELD_OTHER': 9, 'B-YIELD_PERCENT': 10, 'O': 0,
-                 'I-EXAMPLE_LABEL': 11, 'I-REACTION_PRODUCT': 12, 'I-STARTING_MATERIAL': 13, 'I-REAGENT_CATALYST': 14, 'I-SOLVENT': 15, 'I-OTHER_COMPOUND': 16, 'I-TIME': 17, 'I-TEMPERATURE': 18, 'I-YIELD_OTHER': 19, 'I-YIELD_PERCENT': 20}
-        elif self.args.corpus == "chemdner":
-            class_to_index = self.class_to_index = {'O': 0, 'B-ABBREVIATION': 1, 'B-FAMILY': 2,  'B-FORMULA': 3, 'B-IDENTIFIER': 4, 'B-MULTIPLE': 5, 'B-SYSTEMATIC': 6, 'B-TRIVIAL': 7, 'B-NO CLASS': 8, 'I-ABBREVIATION': 9, 'I-FAMILY': 10,  'I-FORMULA': 11, 'I-IDENTIFIER': 12, 'I-MULTIPLE': 13, 'I-SYSTEMATIC': 14, 'I-TRIVIAL': 15, 'I-NO CLASS': 16}
+        class_to_index = get_class_to_index(self.args.corpus)
 
 
 
@@ -263,7 +264,7 @@ class ChemIENERecognizer(LightningModule):
             if not self.args.no_eval:
                 epoch = self.trainer.current_epoch
 
-                metric = evaluate.load("seqeval", cache_dir = '/Mounts/rbg-storage1/users/urop/vincentf/.local/bin')
+                metric = evaluate.load("seqeval", cache_dir = self.args.cache_dir)
 
                 all_metrics = metric.compute(predictions = output['predictions'], references = output['groundtruth'])
 

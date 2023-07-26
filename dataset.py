@@ -13,6 +13,8 @@ from torch.nn.utils.rnn import pad_sequence, pack_padded_sequence
 
 from transformers import BertTokenizerFast
 
+from utils import get_class_to_index
+
 
 
 class NERDataset(Dataset):
@@ -27,11 +29,7 @@ class NERDataset(Dataset):
         self.split = split
         self.is_train = (split == 'train')
         self.tokenizer = BertTokenizerFast.from_pretrained('allenai/scibert_scivocab_uncased')
-        if args.corpus == "chemu":
-            self.class_to_index = {'B-EXAMPLE_LABEL': 1, 'B-REACTION_PRODUCT': 2, 'B-STARTING_MATERIAL': 3, 'B-REAGENT_CATALYST': 4, 'B-SOLVENT': 5, 'B-OTHER_COMPOUND': 6, 'B-TIME': 7, 'B-TEMPERATURE': 8, 'B-YIELD_OTHER': 9, 'B-YIELD_PERCENT': 10, 'O': 0,
-                 'I-EXAMPLE_LABEL': 11, 'I-REACTION_PRODUCT': 12, 'I-STARTING_MATERIAL': 13, 'I-REAGENT_CATALYST': 14, 'I-SOLVENT': 15, 'I-OTHER_COMPOUND': 16, 'I-TIME': 17, 'I-TEMPERATURE': 18, 'I-YIELD_OTHER': 19, 'I-YIELD_PERCENT': 20}
-        elif args.corpus == "chemdner":
-            self.class_to_index = {'O': 0, 'B-ABBREVIATION': 1, 'B-FAMILY': 2,  'B-FORMULA': 3, 'B-IDENTIFIER': 4, 'B-MULTIPLE': 5, 'B-SYSTEMATIC': 6, 'B-TRIVIAL': 7, 'B-NO CLASS': 8, 'I-ABBREVIATION': 9, 'I-FAMILY': 10,  'I-FORMULA': 11, 'I-IDENTIFIER': 12, 'I-MULTIPLE': 13, 'I-SYSTEMATIC': 14, 'I-TRIVIAL': 15, 'I-NO CLASS': 16}
+        self.class_to_index = get_class_to_index(self.args.corpus)
         self.index_to_class = {self.class_to_index[key]: key for key in self.class_to_index}
 
 
