@@ -14,9 +14,9 @@ from utils import get_class_to_index
 
 class ChemNER:
 
-    def __init__(self, model_path, device = None):
+    def __init__(self, model_path, device = None, cache_dir = None):
 
-        self.args = self._get_args()
+        self.args = self._get_args(cache_dir)
 
         states = torch.load(model_path, map_location = torch.device('cpu'))
 
@@ -29,18 +29,24 @@ class ChemNER:
 
         self.collate = get_collate_fn()
 
-        self.dataset = NERDataset(args)
+        self.dataset = NERDataset(self.args)
 
         self.class_to_index = get_class_to_index(self.args.corpus)
 
         self.index_to_class = {self.class_to_index[key]: key for key in self.class_to_index}
 
-    def _get_args(self):
+    def _get_args(self, cache_dir):
         parser = argparse.ArgumentParser()
 
         parser.add_argument('--roberta_checkpoint', default = 'roberta-base', type=str, help='which roberta config to use')
 
         parser.add_argument('--corpus', default = "chemu", type=str, help="which corpus should the tags be from")
+
+        args = parser.parse_args([])
+
+        args.cache_dir = cache_dir
+
+        return args
 
     def get_model(self, args, device, model_states):
         model = build_model(args)
