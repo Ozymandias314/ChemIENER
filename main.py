@@ -15,6 +15,7 @@ from pytorch_lightning import LightningModule, LightningDataModule
 from pytorch_lightning.callbacks import LearningRateMonitor
 from pytorch_lightning.strategies.ddp import DDPStrategy
 from transformers import get_scheduler
+import transformers 
 
 from dataset import NERDataset, get_collate_fn
 
@@ -29,15 +30,6 @@ from seqeval.metrics import classification_report
 from seqeval.metrics import f1_score
 from seqeval.scheme import IOB2
 
-#from rxnscribe.model import Encoder, Decoder
-#from rxnscribe.pix2seq import build_pix2seq_model
-#from rxnscribe.loss import Criterion
-#from rxnscribe.tokenizer import get_tokenizer
-#from rxnscribe.dataset import ReactionDataset, get_collate_fn
-#from rxnscribe.data import postprocess_reactions, postprocess_bboxes
-#from rxnscribe.evaluate import CocoEvaluator, ReactionEvaluator, CorefEvaluator
-#import rxnscribe.utils as utils
-#from rxnscribe.pix2seq.transformer import build_transformer
 
 
 def get_args(notebook=False):
@@ -51,56 +43,7 @@ def get_args(notebook=False):
     parser.add_argument('--print_freq', type=int, default=200)
     parser.add_argument('--debug', action='store_true')
     parser.add_argument('--no_eval', action='store_true')
-    # Model
-    '''
-    parser.add_argument('--encoder', type=str, default='resnet34')
-    parser.add_argument('--decoder', type=str, default='lstm')
-    parser.add_argument('--trunc_encoder', action='store_true')  # use the hidden states before downsample
-    parser.add_argument('--no_pretrained', action='store_true')
-    parser.add_argument('--use_checkpoint', action='store_true')
-    parser.add_argument('--lstm_dropout', type=float, default=0.5)
-    parser.add_argument('--embed_dim', type=int, default=256)
-    parser.add_argument('--enc_pos_emb', action='store_true')
-    group = parser.add_argument_group("lstm_options")
-    group.add_argument('--decoder_dim', type=int, default=512)
-    group.add_argument('--decoder_layer', type=int, default=1)
-    group.add_argument('--attention_dim', type=int, default=256)
-    group = parser.add_argument_group("transformer_options")
-    group.add_argument("--dec_num_layers", help="No. of layers in transformer decoder", type=int, default=6)
-    group.add_argument("--dec_hidden_size", help="Decoder hidden size", type=int, default=256)
-    group.add_argument("--dec_attn_heads", help="Decoder no. of attention heads", type=int, default=8)
-    group.add_argument("--dec_num_queries", type=int, default=128)
-    group.add_argument("--hidden_dropout", help="Hidden dropout", type=float, default=0.1)
-    group.add_argument("--attn_dropout", help="Attention dropout", type=float, default=0.1)
-    group.add_argument("--max_relative_positions", help="Max relative positions", type=int, default=0)
 
-    parser.add_argument('--is_coco', action = 'store_true')
-    
-    # Pix2Seq
-    parser.add_argument('--pix2seq', action='store_true', help="specify the model from playground")
-    parser.add_argument('--pix2seq_ckpt', type=str, default=None)
-    parser.add_argument('--large_scale_jitter', action='store_true', help='large scale jitter')
-    parser.add_argument('--pred_eos', action='store_true', help='use eos token instead of predicting 100 objects')
-    parser.add_argument('--use_hf_transformer', action='store_true', help='use huggingface transformer for transformer')
-    parser.add_argument('--linear_head', action = 'store_true')
-    # * Backbone
-    parser.add_argument('--backbone', default='resnet50', type=str, help="Name of the convolutional backbone to use")
-    parser.add_argument('--dilation', action='store_true',
-                        help="If true, we replace stride with dilation in the last convolutional block (DC5)")
-    parser.add_argument('--position_embedding', default='sine', type=str, choices=('sine', 'learned'),
-                        help="Type of positional embedding to use on top of the image features")
-    # * Transformer
-    parser.add_argument('--enc_layers', default=6, type=int, help="Number of encoding layers in the transformer")
-    parser.add_argument('--dec_layers', default=6, type=int, help="Number of decoding layers in the transformer")
-    parser.add_argument('--dim_feedforward', default=1024, type=int,
-                        help="Intermediate size of the feedforward layers in the transformer blocks")
-    parser.add_argument('--hidden_dim', default=256, type=int,
-                        help="Size of the embeddings (dimension of the transformer)")
-    parser.add_argument('--dropout', default=0.1, type=float, help="Dropout applied in the transformer")
-    parser.add_argument('--nheads', default=8, type=int,
-                        help="Number of attention heads inside the transformer's attentions")
-    parser.add_argument('--pre_norm', action='store_true')
-    '''
 
     # Data
     parser.add_argument('--data_path', type=str, default=None)
@@ -112,16 +55,7 @@ def get_args(notebook=False):
     parser.add_argument('--format', type=str, default='reaction')
     parser.add_argument('--num_workers', type=int, default=8)
     parser.add_argument('--input_size', type=int, default=224)
-    #parser.add_argument('--augment', action='store_true')
-    #parser.add_argument('--composite_augment', action='store_true')
-    #parser.add_argument('--coord_bins', type=int, default=100)
-    #parser.add_argument('--sep_xy', action='store_true')
-    #parser.add_argument('--rand_order', action='store_true', help="randomly permute the sequence of input targets")
-    #parser.add_argument('--split_heuristic', action = 'store_true', help="make the sequence of tokens follow a heuristic")
-    #parser.add_argument('--add_noise', action='store_true')
-    #parser.add_argument('--mix_noise', action='store_true')
-    #parser.add_argument('--shuffle_bbox', action='store_true')
-    #parser.add_argument('--images', type=str, default='')
+
     # Training
     parser.add_argument('--epochs', type=int, default=8)
     parser.add_argument('--batch_size', type=int, default=256)
@@ -140,14 +74,6 @@ def get_args(notebook=False):
     parser.add_argument('--load_ckpt', type=str, default='best')
     parser.add_argument('--resume', action='store_true')
     parser.add_argument('--num_train_example', type=int, default=None)
-    #parser.add_argument('--label_smoothing', type=float, default=0.0)
-    #parser.add_argument('--save_image', action='store_true')
-    # Inference
-    #parser.add_argument('--beam_size', type=int, default=1)
-    #parser.add_argument('--n_best', type=int, default=1)
-    #parser.add_argument('--molscribe', action='store_true')
-
-    #parser.add_argument('--punish_first', action='store_true')
 
     parser.add_argument('--roberta_checkpoint', type=str, default = "roberta-base")
 
@@ -155,9 +81,11 @@ def get_args(notebook=False):
 
     parser.add_argument('--cache_dir')
 
-    args = parser.parse_args([]) if notebook else parser.parse_args()
+    parser.add_argument('--eval_truncated', action='store_true')
 
-    args.images = args.images.split(',')
+    parser.add_argument('--max_seq_length', type = int, default=512)
+
+    args = parser.parse_args([]) if notebook else parser.parse_args()
 
 
 
@@ -182,7 +110,7 @@ class ChemIENERecognizer(LightningModule):
 
 
 
-        sentences, masks, refs = batch
+        sentences, masks, refs,_ = batch
         '''
         print("sentences " + str(sentences))
         print("sentence shape " + str(sentences.shape))
@@ -201,7 +129,7 @@ class ChemIENERecognizer(LightningModule):
     
     def validation_step(self, batch, batch_idx):
         
-        sentences, masks, refs = batch
+        sentences, masks, refs, untruncated = batch
         '''
         print("sentences " + str(sentences))
         print("sentence shape " + str(sentences.shape))
@@ -218,7 +146,7 @@ class ChemIENERecognizer(LightningModule):
         print(logits.shape)
         print(torch.eq(logits.argmax(dim = 2), refs).sum())
         '''
-        self.validation_step_outputs.append((sentences.to("cpu"), logits.argmax(dim = 2).to("cpu"), refs.to('cpu')))
+        self.validation_step_outputs.append((sentences.to("cpu"), logits.argmax(dim = 2).to("cpu"), refs.to('cpu'), untruncated.to("cpu")))
 
 
     def on_validation_epoch_end(self):
@@ -238,6 +166,10 @@ class ChemIENERecognizer(LightningModule):
         index_to_class = {class_to_index[key]: key for key in class_to_index}
         predictions = [list(output[1]) for output in gathered_outputs] 
         labels = [list(output[2]) for output in gathered_outputs]
+
+        untruncateds = [list(output[3]) for output in gathered_outputs]
+
+        untruncateds = [[index_to_class[int(label.item())] for label in sentence if int(label.item()) != -100] for batched in untruncateds for sentence in batched]
 
 
         output = {"sentences": [[int(word.item()) for (word, label) in zip(sentence_w, sentence_l) if label != -100] for (batched_w, batched_l) in zip(sentences, labels) for (sentence_w, sentence_l) in zip(batched_w, batched_l) ], 
@@ -266,15 +198,22 @@ class ChemIENERecognizer(LightningModule):
 
                 metric = evaluate.load("seqeval", cache_dir = self.args.cache_dir)
 
-                all_metrics = metric.compute(predictions = output['predictions'], references = output['groundtruth'])
+                predictions = [ preds + ['O'] * (len(full_groundtruth) - len(preds)) for (preds, full_groundtruth) in zip(output['predictions'], untruncateds)]
+                all_metrics = metric.compute(predictions = predictions, references = untruncateds)
 
                 #accuracy = sum([1 if p == l else 0 for (p, l) in zip(true_predictions, true_labels)])/len(true_labels)
 
                 #precision = torch.eq(self.eval_dataset.data, predictions.argmax(dim = 1)).sum().float()/self.eval_dataset.data.numel()
                 #self.print("Epoch: "+str(epoch)+" accuracy: "+str(accuracy))
-                report = classification_report(output['groundtruth'], output['predictions'], mode = 'strict', scheme = IOB2, output_dict = True)
+                if self.args.eval_truncated:
+                    report = classification_report(output['groundtruth'], output['predictions'], mode = 'strict', scheme = IOB2, output_dict = True)
+                else:
+                    report = classification_report(predictions, untruncateds, output_dict = True)#, mode = 'strict', scheme = IOB2, output_dict = True)
+                    report_strict = classification_report(predictions, untruncateds, mode = 'strict', scheme = IOB2, output_dict = True) 
                 self.print(report)
-                scores = [report['weighted avg']['f1-score']]
+                #self.print("______________________________________________")
+                #self.print(report_strict)
+                scores = [report['micro avg']['f1-score']]
             with open(os.path.join(self.trainer.default_root_dir, f'prediction_{name}.json'), 'w') as f:
                     json.dump(output, f)
         
@@ -345,7 +284,7 @@ class ModelCheckpoint(pl.callbacks.ModelCheckpoint):
         return filepath
 
 def main():
-
+    transformers.utils.logging.set_verbosity_error()
     args = get_args()
 
     pl.seed_everything(args.seed, workers = True)
@@ -353,7 +292,7 @@ def main():
     if args.do_train:
         model = ChemIENERecognizer(args)
     else:
-        model = ChemIENERecognizer.load_from_checkpoint(os.path.join(args.save_path, 'checkpoints/best.ckpt'), strict=False,
+        model = ChemIENERecognizer.load_from_checkpoint(os.path.join(args.save_path, 'checkpoints/874.ckpt'), strict=False,
                                         args=args)
 
     dm = NERDataModule(args)

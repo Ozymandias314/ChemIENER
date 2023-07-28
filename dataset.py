@@ -11,7 +11,7 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader, Dataset
 from torch.nn.utils.rnn import pad_sequence, pack_padded_sequence
 
-from transformers import BertTokenizerFast
+from transformers import BertTokenizerFast, AutoTokenizer, RobertaTokenizerFast
 
 from utils import get_class_to_index
 
@@ -28,18 +28,20 @@ class NERDataset(Dataset):
             self.name = os.path.basename(data_file).split('.')[0]
         self.split = split
         self.is_train = (split == 'train')
-        self.tokenizer = BertTokenizerFast.from_pretrained('allenai/scibert_scivocab_uncased')
+        self.tokenizer = AutoTokenizer.from_pretrained(self.args.roberta_checkpoint, cache_dir = self.args.cache_dir)#BertTokenizerFast.from_pretrained('allenai/scibert_scivocab_uncased')
         self.class_to_index = get_class_to_index(self.args.corpus)
         self.index_to_class = {self.class_to_index[key]: key for key in self.class_to_index}
 
-
+    #commment
     def __len__(self):
         return len(self.data)
 
     def __getitem__(self, idx):
 
-        text_tokenized = self.tokenizer(self.data[str(idx)]['text'], truncation = True, max_length = 512) 
-        return text_tokenized, self.align_labels(text_tokenized, self.data[str(idx)]['entities'], len(self.data[str(idx)]['text']))
+        text_tokenized = self.tokenizer(self.data[str(idx)]['text'], truncation = True, max_length = self.args.max_seq_length)
+        if len(text_tokenized['input_ids']) > 512: print(len(text_tokenized['input_ids']))
+        text_tokenized_untruncated = self.tokenizer(self.data[str(idx)]['text']) 
+        return text_tokenized, self.align_labels(text_tokenized, self.data[str(idx)]['entities'], len(self.data[str(idx)]['text'])), self.align_labels(text_tokenized_untruncated, self.data[str(idx)]['entities'], len(self.data[str(idx)]['text']))
 
     def align_labels(self, text_tokenized, entities, length):
         char_to_class = {}
@@ -152,18 +154,20 @@ def get_collate_fn():
         sentences = []
         masks = []
         refs = []
+        untruncated = []
   
 
         for ex in batch:
             sentences.append(torch.LongTensor(ex[0]['input_ids']))
             masks.append(torch.Tensor(ex[0]['attention_mask']))
             refs.append(ex[1])
+            untruncated.append(ex[2])
 
         sentences = pad_sequence(sentences, batch_first = True, padding_value = 0) 
         masks = pad_sequence(masks, batch_first = True, padding_value = 0)
         refs = pad_sequence(refs, batch_first = True, padding_value = -100)
-
-        return sentences, masks, refs
+        untruncated = pad_sequence(untruncated, batch_first = True, padding_value = -100)
+        return sentences, masks, refs, untruncated
 
     return collate
 
