@@ -208,8 +208,8 @@ class ChemIENERecognizer(LightningModule):
                 if self.args.eval_truncated:
                     report = classification_report(output['groundtruth'], output['predictions'], mode = 'strict', scheme = IOB2, output_dict = True)
                 else:
-                    report = classification_report(predictions, untruncateds, output_dict = True)#, mode = 'strict', scheme = IOB2, output_dict = True)
-                    report_strict = classification_report(predictions, untruncateds, mode = 'strict', scheme = IOB2, output_dict = True) 
+                    #report = classification_report(predictions, untruncateds, output_dict = True)#, mode = 'strict', scheme = IOB2, output_dict = True)
+                    report = classification_report(predictions, untruncateds, mode = 'strict', scheme = IOB2, output_dict = True) 
                 self.print(report)
                 #self.print("______________________________________________")
                 #self.print(report_strict)
@@ -292,7 +292,7 @@ def main():
     if args.do_train:
         model = ChemIENERecognizer(args)
     else:
-        model = ChemIENERecognizer.load_from_checkpoint(os.path.join(args.save_path, 'checkpoints/874.ckpt'), strict=False,
+        model = ChemIENERecognizer.load_from_checkpoint(os.path.join(args.save_path, 'checkpoints/best.ckpt'), strict=False,
                                         args=args)
 
     dm = NERDataModule(args)
