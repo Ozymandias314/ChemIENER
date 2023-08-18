@@ -4,13 +4,13 @@ from typing import List
 import torch
 import numpy as np
 
-from model import build_model
+from .model import build_model
 
-from dataset import NERDataset, get_collate_fn
+from .dataset import NERDataset, get_collate_fn
 
 from huggingface_hub import hf_hub_download
 
-from utils import get_class_to_index
+from .utils import get_class_to_index
 
 class ChemNER:
 

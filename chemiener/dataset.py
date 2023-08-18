@@ -13,7 +13,7 @@ from torch.nn.utils.rnn import pad_sequence, pack_padded_sequence
 
 from transformers import BertTokenizerFast, AutoTokenizer, RobertaTokenizerFast
 
-from utils import get_class_to_index
+from .utils import get_class_to_index
 
 
 
