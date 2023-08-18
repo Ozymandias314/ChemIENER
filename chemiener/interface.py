@@ -74,7 +74,7 @@ class ChemNER:
 
             sentences, masks, refs = self.collate(batch_strings_tokenized)
 
-            predictions = self.model(input_ids = sentences, attention_mask = masks)[0].argmax(dim = 2).to('cpu')
+            predictions = self.model(input_ids = sentences, attention_mask = masks)[0].argmax(dim = 2).to(device)
 
             sentences_list = list(sentences)
 
