@@ -61,18 +61,34 @@ class ChemNER:
         model.eval()
 
         return model
-
+    
     def predict_strings(self, strings: List, batch_size = 8):
         device = self.device
 
         predictions = []
 
-        output = {"sentences": [], "predictions": []}
+        def prepare_output(char_span, prediction):
+            toreturn = []
+            curStart = None
+            curEnd = None
+            curClass = None
+            for span, pred in zip(char_span, prediction):
+                if pred[0] == 'B':
+                    toreturn.append((pred[2:], [span.start, span.end]))
+                elif pred[0] == 'I':
+                    if toreturn[-1][0]!=pred[2:]:
+                        raise Exception
+                    else:
+                        toreturn[-1] = (toreturn[-1][0], [toreturn[-1][1][0], span.end])
+            return toreturn
+
+        output = []
         for idx in range(0, len(strings), batch_size):
             batch_strings = strings[idx:idx+batch_size]
-            batch_strings_tokenized = [(self.dataset.tokenizer(s, truncation = True, max_length = 512),  torch.Tensor([-1]) ) for s in batch_strings]
+            batch_strings_tokenized = [(self.dataset.tokenizer(s, truncation = True, max_length = 512),  torch.Tensor([-1]), torch.Tensor([-1]) ) for s in batch_strings]
 
-            sentences, masks, refs = self.collate(batch_strings_tokenized)
+
+            sentences, masks, refs, _ = self.collate(batch_strings_tokenized)
 
             predictions = self.model(input_ids = sentences.to(device), attention_mask = masks.to(device))[0].argmax(dim = 2).to('cpu')
 
@@ -80,8 +96,17 @@ class ChemNER:
 
             predictions_list = list(predictions)
 
-            output["sentences"]+=[ [self.dataset.tokenizer.decode(int(word.item())) for word in sentence if len(self.dataset.tokenizer.decode(int(word.item()), skip_special_tokens = True)) > 0] for sentence in sentences_list]
-            output["predictions"]+=[[self.index_to_class[int(pred.item())] for (pred, word) in zip(sentence_p, sentence_w) if len(self.dataset.tokenizer.decode(int(word.item()), skip_special_tokens = True)) > 0] for (sentence_p, sentence_w) in zip(predictions_list, sentences_list)]
+
+            char_spans = []
+            for j, sentence in enumerate(sentences_list):
+                to_add = [batch_strings_tokenized[j][0].token_to_chars(i) for i, word in enumerate(sentence) if len(self.dataset.tokenizer.decode(int(word.item()), skip_special_tokens = True)) > 0 ]
+                char_spans.append(to_add)
+
+            class_predictions = [[self.index_to_class[int(pred.item())] for (pred, word) in zip(sentence_p, sentence_w) if len(self.dataset.tokenizer.decode(int(word.item()), skip_special_tokens = True)) > 0] for (sentence_p, sentence_w) in zip(predictions_list, sentences_list)]
+
+
+            
+            output+=[prepare_output(char_span, prediction) for char_span, prediction in zip(char_spans, class_predictions)]
         
         return output
 
