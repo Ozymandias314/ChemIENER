@@ -4,13 +4,13 @@ from typing import List
 import torch
 import numpy as np
 
-from model import build_model
+from .model import build_model
 
-from dataset import NERDataset, get_collate_fn
+from .dataset import NERDataset, get_collate_fn
 
 from huggingface_hub import hf_hub_download
 
-from utils import get_class_to_index
+from .utils import get_class_to_index
 
 class ChemNER:
 
@@ -74,7 +74,7 @@ class ChemNER:
 
             sentences, masks, refs = self.collate(batch_strings_tokenized)
 
-            predictions = self.model(input_ids = sentences, attention_mask = masks)[0].argmax(dim = 2).to('cpu')
+            predictions = self.model(input_ids = sentences.to(device), attention_mask = masks.to(device))[0].argmax(dim = 2).to('cpu')
 
             sentences_list = list(sentences)
 

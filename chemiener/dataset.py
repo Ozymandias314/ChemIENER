@@ -13,7 +13,7 @@ from torch.nn.utils.rnn import pad_sequence, pack_padded_sequence
 
 from transformers import BertTokenizerFast, AutoTokenizer, RobertaTokenizerFast
 
-from utils import get_class_to_index
+from .utils import get_class_to_index
 
 
 
@@ -154,20 +154,17 @@ def get_collate_fn():
         sentences = []
         masks = []
         refs = []
-        untruncated = []
   
 
         for ex in batch:
             sentences.append(torch.LongTensor(ex[0]['input_ids']))
             masks.append(torch.Tensor(ex[0]['attention_mask']))
             refs.append(ex[1])
-            untruncated.append(ex[2])
 
         sentences = pad_sequence(sentences, batch_first = True, padding_value = 0) 
         masks = pad_sequence(masks, batch_first = True, padding_value = 0)
         refs = pad_sequence(refs, batch_first = True, padding_value = -100)
-        untruncated = pad_sequence(untruncated, batch_first = True, padding_value = -100)
-        return sentences, masks, refs, untruncated
+        return sentences, masks, refs
 
     return collate
 
