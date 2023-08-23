@@ -88,7 +88,7 @@ class ChemNER:
             batch_strings_tokenized = [(self.dataset.tokenizer(s, truncation = True, max_length = 512),  torch.Tensor([-1]), torch.Tensor([-1]) ) for s in batch_strings]
 
 
-            sentences, masks, refs, _ = self.collate(batch_strings_tokenized)
+            sentences, masks, refs = self.collate(batch_strings_tokenized)
 
             predictions = self.model(input_ids = sentences.to(device), attention_mask = masks.to(device))[0].argmax(dim = 2).to('cpu')
 
