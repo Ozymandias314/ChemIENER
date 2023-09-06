@@ -69,17 +69,25 @@ class ChemNER:
 
         def prepare_output(char_span, prediction):
             toreturn = []
-            curStart = None
-            curEnd = None
-            curClass = None
-            for span, pred in zip(char_span, prediction):
-                if pred[0] == 'B':
-                    toreturn.append((pred[2:], [span.start, span.end]))
-                elif pred[0] == 'I':
-                    if toreturn[-1][0]!=pred[2:]:
-                        raise Exception
-                    else:
-                        toreturn[-1] = (toreturn[-1][0], [toreturn[-1][1][0], span.end])
+
+
+            i = 0
+
+            while i < len(char_span):
+                if prediction[i][0] == 'B':
+                    toreturn.append((prediction[i][2:], [char_span[i].start, char_span[i].end]))
+
+
+
+
+                elif prediction[i][2:] == toreturn[-1][0]:
+                    toreturn[-1] = (toreturn[-1][0], [toreturn[-1][1][0], char_span[i].end])
+
+                    
+
+                i += 1
+
+
             return toreturn
 
         output = []
