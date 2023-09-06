@@ -80,7 +80,7 @@ class ChemNER:
 
 
 
-                elif prediction[i][2:] == toreturn[-1][0]:
+                elif len(toreturn) > 0 and prediction[i][2:] == toreturn[-1][0]:
                     toreturn[-1] = (toreturn[-1][0], [toreturn[-1][1][0], char_span[i].end])
 
                     
