@@ -34,8 +34,14 @@ The predictions are given in character-level spans, and have the following forma
 ```
 
 ## Data
+We train our model on the [`CHEMDNER`](https://jcheminf.biomedcentral.com/articles/10.1186/1758-2946-7-S1-S2) corpus of annotated titles and abstracts from chemical literature. The processed
+data can be found at [`data/`](data).
 
 ## Train and Evaluate ChemNER
+Run this script to train and evaluate ChemNER.
+```bash
+bash scripts/train_ner.sh
+```
 
 
 
