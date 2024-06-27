@@ -20,7 +20,7 @@ ckpt_path = hf_hub_download("Ozymandias314/ChemNERCkpt", "best.ckpt")
 model = ChemNER(ckpt_path, device=torch.device('cpu'))
 
 text = ["The chemical formula of water is H2O"]
-predictions = model.predict_image_file(text)
+predictions = model.predict_strings(text)
 ```
 The predictions are given in character-level spans, and have the following format:
 ```python
